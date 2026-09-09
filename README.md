@@ -16,28 +16,17 @@ Este projeto implementa um modelo numérico de um **buraco negro de Schwarzschil
 * carga elétrica nula;
 * espaço-tempo isolado;
 * Relatividade Geral;
-* unidades geométricas \(G=c=M=1\).
+* unidades geométricas $G=c=M=1$.
 
 A base física do projeto é a **métrica de Schwarzschild** e a equação das **geodésicas**.
 
 Para um raio de luz, a trajetória é obtida pela integração numérica de
 
-$$
-\frac{d^2x^\mu}{d\lambda^2}
-+
-\Gamma^\mu_{\alpha\beta}
-\frac{dx^\alpha}{d\lambda}
-\frac{dx^\beta}{d\lambda}
-=0
-$$
+$$\frac{d^2x^\mu}{d\lambda^2} + \Gamma^\mu_{\alpha\beta} \frac{dx^\alpha}{d\lambda} \frac{dx^\beta}{d\lambda} =0$$
 
 sujeita à condição de geodésica nula
 
-$$
-g_{\mu\nu}
-\frac{dx^\mu}{d\lambda}
-\frac{dx^\nu}{d\lambda}=0.
-$$
+$$g_{\mu\nu} \frac{dx^\mu}{d\lambda} \frac{dx^\nu}{d\lambda}=0.$$
 
 A ideia central é lançar raios a partir de uma **câmera virtual**, integrar suas trajetórias para trás através do espaço-tempo e determinar o que cada pixel da imagem observaria.
 
@@ -82,43 +71,23 @@ A ideia central é lançar raios a partir de uma **câmera virtual**, integrar s
 
 A métrica de Schwarzschild é dada por
 
-$$
-ds^2 =
--\left(1-\frac{2M}{r}\right)c^2dt^2
-+
-\left(1-\frac{2M}{r}\right)^{-1}dr^2
-+
-r^2d\theta^2
-+
-r^2\sin^2\theta\,d\phi^2.
-$$
+$$ds^2 = -\left(1-\frac{2M}{r}\right)c^2dt^2 + \left(1-\frac{2M}{r}\right)^{-1}dr^2 + r^2d\theta^2 + r^2\sin^2\theta\,d\phi^2.$$
 
 Neste projeto são utilizadas unidades geométricas:
 
-$$
-G=c=M=1.
-$$
+$$G=c=M=1.$$
 
 Assim,
 
-$$
-ds^2 =
--\left(1-\frac{2}{r}\right)dt^2
-+
-\left(1-\frac{2}{r}\right)^{-1}dr^2
-+
-r^2d\theta^2
-+
-r^2\sin^2\theta\,d\phi^2.
-$$
+$$ds^2 = -\left(1-\frac{2}{r}\right)dt^2 + \left(1-\frac{2}{r}\right)^{-1}dr^2 + r^2d\theta^2 + r^2\sin^2\theta\,d\phi^2.$$
 
 As principais escalas características do sistema são:
 
-| Estrutura            |   Raio |
-| -------------------- | -----: |
-| Horizonte de eventos | \(2M\) |
-| Esfera de fótons     | \(3M\) |
-| ISCO                 | \(6M\) |
+| Estrutura | Raio |
+| --- | --- |
+| Horizonte de eventos | $2M$ |
+| Esfera de fótons | $3M$ |
+| ISCO | $6M$ |
 
 ---
 
@@ -126,33 +95,19 @@ As principais escalas características do sistema são:
 
 O estado utilizado na integração é
 
-$$
-\mathbf{y}
-=
-(t,r,\theta,\phi,
-\dot{t},\dot{r},\dot{\theta},\dot{\phi}).
-$$
+$$\mathbf{y} = (t,r,\theta,\phi, \dot{t},\dot{r},\dot{\theta},\dot{\phi}).$$
 
 A dinâmica é escrita como
 
-$$
-\dot{x}^{\mu}=u^\mu
-$$
+$$\dot{x}^{\mu}=u^\mu$$
 
 e
 
-$$
-\dot{u}^{\mu}
-=
--\Gamma^\mu_{\alpha\beta}
-u^\alpha u^\beta.
-$$
+$$\dot{u}^{\mu} = -\Gamma^\mu_{\alpha\beta} u^\alpha u^\beta.$$
 
 Para fótons, a trajetória deve satisfazer
 
-$$
-g_{\mu\nu}u^\mu u^\nu=0.
-$$
+$$g_{\mu\nu}u^\mu u^\nu=0.$$
 
 Dessa forma, a propagação da luz é determinada pela geometria do espaço-tempo, e não por uma aproximação newtoniana.
 
@@ -181,6 +136,7 @@ photon_sphere: OK
 circular_orbit: OK
 isco: OK
 precession: OK
+
 ```
 
 A validação é importante porque o objetivo do projeto é gerar a imagem a partir da dinâmica relativística, e não simplesmente desenhar um buraco negro visualmente convincente.
@@ -211,6 +167,7 @@ Em vez de emitir milhões de fótons a partir do buraco negro, cada pixel da câ
                   \ /
                   (●)
              BURACO NEGRO
+
 ```
 
 Para cada pixel:
@@ -218,7 +175,7 @@ Para cada pixel:
 1. determinar a posição da câmera;
 2. determinar a direção do raio;
 3. construir as condições iniciais do fóton;
-4. garantir a condição nula \(ds^2=0\);
+4. garantir a condição nula $ds^2=0$;
 5. integrar a geodésica;
 6. verificar se o raio é capturado ou escapa;
 7. determinar a origem aparente do raio;
@@ -234,15 +191,11 @@ Um dos primeiros resultados esperados é a obtenção da **sombra aparente** do 
 
 O raio crítico da órbita de fótons para um observador distante está relacionado ao parâmetro de impacto crítico:
 
-$$
-b_{\mathrm{crit}} = 3\sqrt{3}\,M.
-$$
+$$b_{\mathrm{crit}} = 3\sqrt{3}\,M.$$
 
 Isso é importante porque a sombra observada não corresponde simplesmente ao círculo físico do horizonte
 
-$$
-r=2M.
-$$
+$$r=2M.$$
 
 A curvatura do espaço-tempo faz com que fótons que passam fora do horizonte também possam ser capturados.
 
@@ -264,6 +217,7 @@ A fronteira da sombra emerge naturalmente da classificação entre:
                      /  |  \
                     /   |   \
                  FÓTONS CAPTURADOS
+
 ```
 
 ---
@@ -297,6 +251,7 @@ Sem o buraco negro:
           ★
 
  ★              ★
+
 ```
 
 Com o buraco negro, os raios provenientes dessas estrelas serão desviados pela geometria do espaço-tempo.
@@ -368,6 +323,7 @@ black_hole/
 │   └── renderer.py
 │
 └── main.py
+
 ```
 
 A arquitetura segue o fluxo:
@@ -389,6 +345,7 @@ A arquitetura segue o fluxo:
              │
              ▼
           IMAGEM
+
 ```
 
 O renderer não deve calcular a física do buraco negro. Ele recebe os resultados da simulação e os transforma em informação visual.
@@ -429,6 +386,7 @@ O objetivo é implementar o modelo diretamente a partir das equações físicas,
 [ ] Efeito Doppler relativístico
 [ ] Renderização em alta resolução
 [ ] Otimização de performance
+
 ```
 
 ---
