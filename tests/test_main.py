@@ -46,12 +46,14 @@ class EntrypointTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "nested" / "scene.png"
             with redirect_stdout(StringIO()):
-                main.run_renderer(headless=True, output=destination)
+                main.run_renderer(headless=True, output=destination, width=161, height=121)
             with Image.open(destination) as image:
                 self.assertEqual(image.format, "PNG")
                 self.assertGreater(image.width, 100)
                 self.assertGreater(image.height, 100)
                 self.assertGreater(max(ImageStat.Stat(image.convert("RGB")).var), 0)
+                self.assertEqual(image.size, (161, 121))
+                self.assertEqual(image.convert("RGB").getpixel((80, 60)), (0, 0, 0))
             import matplotlib.pyplot as plt
             self.assertEqual(plt.get_fignums(), [])
 

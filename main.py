@@ -4,8 +4,8 @@ Main entry point for the Schwarzschild black-hole simulation.
 This module:
 
 1. Runs the complete physical validation suite.
-2. Creates the 2D renderer.
-3. Displays the Schwarzschild black-hole geometry.
+2. Traces null geodesics backwards from a static camera.
+3. Displays or saves the gravitationally lensed celestial sky.
 
 The physical model itself is implemented in the physics/
 and simulation/ packages.
@@ -37,6 +37,14 @@ def parse_args(argv=None):
     parser.add_argument(
         "--validate-only", action="store_true", help="Executa apenas a validação física.",
     )
+    parser.add_argument(
+        "--mode", choices=("raytrace", "geometry"), default="raytrace",
+        help="Ray tracing (padrão) ou diagrama geométrico anterior.",
+    )
+    parser.add_argument("--width", type=int, default=640, help="Largura da imagem em pixels.")
+    parser.add_argument("--height", type=int, default=400, help="Altura da imagem em pixels.")
+    parser.add_argument("--fov", type=float, default=45.0, help="Campo de visão vertical, graus.")
+    parser.add_argument("--distance", type=float, default=30.0, help="Distância da câmera em M.")
     return parser.parse_args(argv)
 
 
@@ -64,8 +72,9 @@ def run_validation():
     return results
 
 
-def run_renderer(headless=False, output=None):
-    """Display the current geometric scene or save it on machines without a GUI."""
+def run_renderer(headless=False, output=None, mode="raytrace", width=640,
+                 height=400, fov=45.0, distance=30.0):
+    """Render numerical rays by default; keep the geometry diagram optional."""
     cache = PROJECT_ROOT / "outputs" / ".cache" / "matplotlib"
     if "MPLCONFIGDIR" not in os.environ:
         cache.mkdir(parents=True, exist_ok=True)
@@ -81,23 +90,46 @@ def run_renderer(headless=False, output=None):
     backend = matplotlib.get_backend().lower()
     noninteractive = backend in {"agg", "pdf", "svg", "ps", "cairo", "template", "pgf"}
 
-    from renderer import Renderer2D
     import matplotlib.pyplot as plt
 
-    print("\n=== Renderer 2D ===")
-    renderer = Renderer2D(M=1.0)
-    try:
+    if mode == "raytrace":
+        from raytracing import Camera, render
+
+        camera = Camera(width=width, height=height, fov=fov, distance=distance)
+        print(f"\n=== Ray tracing: {width} x {height} raios ===", flush=True)
+        image, result = render(camera)
+        print(
+            f"[OK] Capturados: {result.captured.sum()}; "
+            f"escaparam: {result.escaped.sum()}; "
+            f"não resolvidos: {result.unresolved.sum()}; "
+            f"erro relativo máx. de E²: {result.energy_error.max():.2e}",
+            flush=True,
+        )
+        fig, ax = plt.subplots()
+        ax.imshow(image)
+        ax.set_axis_off()
+        fig.tight_layout(pad=0)
+    else:
+        from renderer import Renderer2D
+
+        print("\n=== Renderer geométrico 2D ===")
+        renderer = Renderer2D(M=1.0)
         renderer.draw_scene(title="Schwarzschild Black Hole")
+        fig = renderer.fig
+    try:
         if output is not None or headless or no_display or noninteractive:
             destination = output if output is not None else PROJECT_ROOT / "outputs" / "blackhole.png"
             destination = Path(destination).resolve()
             destination.parent.mkdir(parents=True, exist_ok=True)
-            renderer.fig.savefig(destination)
+            if mode == "raytrace":
+                plt.imsave(destination, image)
+            else:
+                fig.savefig(destination)
             print(f"[OK] Imagem salva em: {destination}")
         if not (headless or no_display or noninteractive):
-            renderer.show()
+            plt.show()
     finally:
-        plt.close(renderer.fig)
+        plt.close(fig)
 
 
 def main(argv=None):
@@ -109,7 +141,10 @@ def main(argv=None):
             return 1
         print("\n[OK] Todos os testes físicos passaram.")
         if not args.validate_only:
-            run_renderer(headless=args.headless, output=args.output)
+            run_renderer(
+                headless=args.headless, output=args.output, mode=args.mode,
+                width=args.width, height=args.height, fov=args.fov, distance=args.distance,
+            )
     except ModuleNotFoundError as exc:
         print(
             f"[ERRO] Dependência ausente: {exc.name}. Instale com:\n"
@@ -117,7 +152,7 @@ def main(argv=None):
             file=sys.stderr,
         )
         return 1
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"[ERRO] {exc}", file=sys.stderr)
         return 1
     return 0

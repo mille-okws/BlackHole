@@ -4,7 +4,12 @@
 
 Simulação numérica da propagação da luz nas proximidades de um buraco negro de Schwarzschild utilizando geodésicas da Relatividade Geral.
 
-O objetivo do projeto é construir um **ray tracer relativístico** capaz de reproduzir numericamente fenômenos como **lente gravitacional, esfera de fótons e sombra aparente de um buraco negro**.
+O projeto já implementa um **ray tracer relativístico** que produz a sombra aparente e a lente gravitacional de um buraco negro sobre um céu procedural, a partir da integração de geodésicas nulas.
+
+![Ray tracing do buraco negro de Schwarzschild: sombra e lente gravitacional sobre um céu de estrelas](docs/images/blackhole.png)
+
+Imagem gerada por `python main.py`, em 640 × 400 pixels, com câmera a 30M.
+O fundo é procedural; a imagem ainda não inclui disco de acreção.
 
 ---
 
@@ -27,9 +32,10 @@ Quando a `.venv` local existe, `python main.py` usa automaticamente o
 interpretador desse ambiente, sem exigir ativação manual.
 
 O comando `python main.py` executa as sete validações físicas, imprime o
-resumo e, se todas passarem, renderiza a cena geométrica 2D. Com display,
-exibe a cena; sem display, salva uma imagem automaticamente em
-`outputs/blackhole.png`.
+resumo e, se todas passarem, executa o ray tracing em **640 × 400 pixels**,
+com campo de visão vertical de **45°** e câmera a **30M**. Com display,
+exibe a imagem; sem display, salva automaticamente em `outputs/blackhole.png`.
+O diagrama geométrico anterior continua disponível com `--mode geometry`.
 
 Flags implementadas para esse mesmo entrypoint:
 
@@ -38,10 +44,15 @@ Flags implementadas para esse mesmo entrypoint:
 | `--headless` | Executar sem janela e salvar a imagem após as validações. |
 | `--output CAMINHO` | Definir o caminho do arquivo de imagem. |
 | `--validate-only` | Executar somente as validações físicas, sem renderizar. |
+| `--mode raytrace\|geometry` | Selecionar ray tracing (padrão) ou diagrama geométrico 2D. |
+| `--width N` | Largura em pixels do ray tracing (padrão: 640). |
+| `--height N` | Altura em pixels do ray tracing (padrão: 400). |
+| `--fov GRAUS` | Campo de visão vertical do ray tracing (padrão: 45). |
+| `--distance D` | Distância da câmera em unidades de M (padrão: 30). |
 
 Essas opções mantêm `python main.py` como único entrypoint.
 
-Para executar os cinco testes automatizados com `unittest`, na raiz do
+Para executar os 16 testes automatizados com `unittest`, na raiz do
 repositório:
 
 ```bash
@@ -97,11 +108,11 @@ A ideia central é lançar raios a partir de uma **câmera virtual**, integrar s
 
 ### Visualização
 
-O renderer atual é geométrico: o entrypoint desenha horizonte ($2M$), esfera
-de fótons ($3M$), ISCO ($6M$), eixos e grade. Há suporte para desenhar
-trajetórias, mas sua conexão com a saída da simulação no `main.py` ainda
-está pendente. A câmera 2D controla a visualização; a câmera que gera raios
-por pixel e o ray tracing relativístico ainda serão implementados.
+O modo padrão integra um raio por pixel e forma a imagem com a sombra e
+o céu procedural desviado pela gravidade. O modo `--mode geometry` conserva
+o diagrama de horizonte ($2M$), esfera de fótons ($3M$), ISCO ($6M$), eixos
+e grade. Nesse modo há suporte para desenhar trajetórias, mas sua conexão
+com a saída da simulação no `main.py` ainda está pendente.
 
 * [x] Renderer 2D
 * [x] Horizonte de eventos
@@ -109,12 +120,12 @@ por pixel e o ray tracing relativístico ainda serão implementados.
 * [x] ISCO
 * [x] Suporte a desenho de trajetórias das geodésicas no renderer
 * [ ] Conexão das trajetórias ao renderer pelo entrypoint
-* [ ] Modelo de câmera
-* [ ] Geração de raios
-* [ ] Ray tracing relativístico
-* [ ] Sombra do buraco negro
-* [ ] Lente gravitacional
-* [ ] Campo de estrelas
+* [x] Câmera estática em referencial ortonormal local
+* [x] Geração de raios por pixel
+* [x] Ray tracing relativístico
+* [x] Sombra do buraco negro por captura numérica
+* [x] Lente gravitacional do fundo
+* [x] Campo de estrelas procedural
 * [ ] Disco de acreção
 * [ ] Redshift gravitacional
 * [ ] Efeito Doppler relativístico
@@ -195,13 +206,19 @@ precession: OK
 
 A validação é importante porque o objetivo do projeto é gerar a imagem a partir da dinâmica relativística, e não simplesmente desenhar um buraco negro visualmente convincente.
 
+A suíte automatizada atual tem **16 testes**. Esses testes são distintos
+das sete validações executadas pelo entrypoint e cobrem condições iniciais
+nulas da câmera, espaço plano, acordo com o integrador completo de
+Christoffel, captura/escape em torno de $b_{\mathrm{crit}}$, sombra para um
+observador a distância finita, deflexão fraca $4M/b$, convergência por
+refinamento do passo e da fronteira externa, comportamento perto da
+separatriz, escala de massa/comprimento e regressões do entrypoint.
+
 ---
 
 # Ray Tracing
 
-A próxima etapa do projeto é implementar **ray tracing relativístico**.
-
-A abordagem escolhida será o **backward ray tracing**.
+A implementação atual usa **backward ray tracing**.
 
 Em vez de emitir milhões de fótons a partir do buraco negro, cada pixel da câmera gera um raio que é propagado **para trás** através do espaço-tempo.
 
@@ -235,17 +252,68 @@ Para cada pixel:
 7. determinar a origem aparente do raio;
 8. atribuir uma cor ao pixel.
 
-O resultado será uma imagem construída diretamente a partir das trajetórias dos fótons.
+O resultado é uma imagem construída diretamente a partir das trajetórias dos fótons.
+
+### Câmera e integração
+
+A câmera pinhole estática fica em $+x$, aponta para a origem e usa $+y$
+como direita e $+z$ como cima. Cada centro de pixel define uma direção
+unitária no referencial ortonormal local do observador. Para frequência
+local unitária, a conversão para velocidades afins usa
+$r'=\sqrt{1-2M/d}\,n_r$ e mantém as componentes transversais locais,
+garantindo condições iniciais nulas. A câmera deve ficar fora do horizonte.
+
+Pela simetria esférica, cada geodésica está em um plano orbital. Definindo
+$r=|\mathbf{x}|$ e $L=|\mathbf{x}\times\mathbf{x}'|$, a redução espacial
+**exata** das geodésicas nulas de Schwarzschild é
+
+$$\mathbf{x}''=-\frac{3ML^2}{r^5}\mathbf{x}.$$
+
+As derivadas são em relação ao parâmetro afim. Essa equação equivale a
+$r''=L^2/r^3-3ML^2/r^4$ e $\phi'=L/r^2$; não é uma aproximação
+newtoniana. O tempo coordenado é dispensável para este fundo estático.
+
+O integrador usa **RK4 vetorizado**, com passos afins escalados por
+$r/|\mathbf{x}'|$. Perto do parâmetro de impacto crítico, quando
+$|b/b_{\mathrm{crit}}-1|<10^{-4}$, usa **DOP853 de alta precisão**
+(`rtol=2e-13`, `atol=2e-14`). Aqui $b=L/E$ e
+$E^2=|\mathbf{x}'|^2-2ML^2/r^3$. O parâmetro de impacto seleciona o
+método numérico; **não define uma máscara analítica de sombra**.
+
+A captura depende da trajetória integrada atingir $r\leq2.002M$; o escape
+exige cruzar para fora a esfera de raio $\max(200M,4d)$. Raios que esgotam
+o orçamento de integração permanecem não resolvidos. Também são mantidos
+não resolvidos os raios com $|b/b_{\mathrm{crit}}-1|<10^{-12}$, onde a
+classificação na separatriz não é confiável em precisão finita. O renderer
+interrompe com erro se houver raios não resolvidos, sem tratá-los como captura.
+
+### Aproximações e limites atuais
+
+A direção de escape é avaliada em uma fronteira finita e aproxima a direção
+assintótica do céu; aumentar o raio de escape permite verificar esse erro.
+A captura em $2.002M$ também é um limiar numérico externo ao horizonte.
+Há um raio por centro de pixel, **sem antialiasing**, e resolução espacial,
+passo e orçamento de integração limitam os detalhes próximos da sombra.
+O modelo não inclui rotação do buraco negro, disco de acreção, efeito
+Doppler nem redshift gravitacional na cor/intensidade da imagem.
 
 ---
 
 # Sombra do buraco negro
 
-Um dos primeiros resultados esperados é a obtenção da **sombra aparente** do buraco negro.
+A **sombra aparente** já emerge dos raios capturados, que recebem cor preta.
 
 O raio crítico da órbita de fótons para um observador distante está relacionado ao parâmetro de impacto crítico:
 
 $$b_{\mathrm{crit}} = 3\sqrt{3}\,M.$$
+
+Para a câmera estática a distância finita $d$ usada nos testes ($d>3M$),
+o raio angular da sombra satisfaz
+
+$$\sin\alpha=\frac{3\sqrt{3}M}{d}\sqrt{1-\frac{2M}{d}}.$$
+
+Esse valor é uma referência de validação da sombra integrada, não uma
+regra para pintar os pixels.
 
 Isso é importante porque a sombra observada não corresponde simplesmente ao círculo físico do horizonte
 
@@ -278,14 +346,13 @@ A fronteira da sombra emerge naturalmente da classificação entre:
 
 # Lente gravitacional
 
-Os raios que passam próximos à esfera de fótons sofrerão grandes desvios angulares.
+Os raios que passam próximos à esfera de fótons sofrem grandes desvios angulares.
 
-O ray tracer deverá permitir observar:
+O ray tracer já calcula o desvio gravitacional do céu, incluindo trajetórias
+fortemente defletidas perto da esfera de fótons. A deflexão no campo fraco
+é testada contra $4M/b$. Estudos específicos de múltiplas imagens e anéis
+de Einstein em configurações controladas continuam como extensões futuras:
 
-* desvio gravitacional da luz;
-* lente gravitacional fraca;
-* lente gravitacional forte;
-* trajetórias altamente defletidas;
 * múltiplas imagens;
 * anéis de Einstein em configurações apropriadas.
 
@@ -293,7 +360,9 @@ O ray tracer deverá permitir observar:
 
 # Campo de estrelas
 
-Uma etapa posterior será implementar um campo de estrelas como background.
+O fundo atual é um **céu procedural determinístico**, com estrelas e uma
+faixa difusa com estrutura e poeira. Não usa um catálogo astronômico e
+essa faixa não é um disco de acreção.
 
 Sem o buraco negro:
 
@@ -308,15 +377,16 @@ Sem o buraco negro:
 
 ```
 
-Com o buraco negro, os raios provenientes dessas estrelas serão desviados pela geometria do espaço-tempo.
+Com o buraco negro, as direções dos raios que escapam amostram esse céu
+após o desvio pela geometria do espaço-tempo.
 
-Assim, a distorção do campo visual será consequência direta do ray tracing.
+Assim, a distorção do campo visual é consequência direta do ray tracing.
 
 ---
 
 # Disco de acreção
 
-Depois da implementação da sombra e da lente gravitacional, será adicionado um **disco de acreção**.
+O **disco de acreção ainda não está implementado** e permanece no roadmap.
 
 Nesse estágio, cada raio poderá:
 
@@ -340,12 +410,13 @@ Posteriormente poderão ser incluídos efeitos relativísticos como:
 
 O projeto separa o modelo físico da visualização.
 
-A árvore abaixo inclui a arquitetura planejada: `raytracing/` ainda não
-existe no repositório. O fluxo até pixels e imagem por ray tracing é futuro;
-a execução atual termina na visualização geométrica 2D.
+A árvore abaixo descreve os módulos atuais. `physics/` e `simulation/`
+mantêm o integrador geral com Christoffel; `raytracing/` implementa a câmera,
+a redução espacial exata das geodésicas nulas e a formação da imagem.
+`renderer/` conserva o diagrama geométrico opcional.
 
 ```text
-black_hole/
+BlackHole/
 │
 ├── physics/
 │   ├── metric.py
@@ -373,12 +444,15 @@ black_hole/
 │   └── camera.py
 │
 ├── raytracing/
+│   ├── __init__.py
 │   ├── camera.py
-│   ├── rays.py
 │   ├── integrator.py
-│   ├── events.py
 │   ├── background.py
 │   └── renderer.py
+│
+├── tests/
+│   ├── test_main.py
+│   └── test_raytracing.py
 │
 └── main.py
 
@@ -406,7 +480,10 @@ A arquitetura segue o fluxo:
 
 ```
 
-O renderer não deve calcular a física do buraco negro. Ele recebe os resultados da simulação e os transforma em informação visual.
+No modo padrão, `main.py` valida a física e chama `raytracing.renderer`:
+a câmera gera os raios, o integrador classifica as trajetórias e o renderer
+amostra o céu para os escapes, atribuindo preto às capturas. A física da
+propagação fica no integrador; o fundo procedural é independente dela.
 
 ---
 
@@ -435,19 +512,24 @@ O objetivo é implementar o modelo diretamente a partir das equações físicas,
 [ ] Conexão das geodésicas ao renderer pelo main.py
 [x] Salvamento automático de imagem sem display
 [x] Flags --headless, --output CAMINHO e --validate-only
+[x] Modo padrão raytrace e modo opcional geometry
+[x] Opções --width, --height, --fov e --distance
 
-[ ] Modelo de câmera
-[ ] Geração dos raios
-[ ] Ray tracing de geodésicas nulas
-[ ] Classificação captura/escape
-[ ] Sombra do buraco negro
-[ ] Lente gravitacional
-[ ] Campo de estrelas
+[x] Câmera estática em referencial ortonormal local
+[x] Geração dos raios
+[x] Ray tracing de geodésicas nulas
+[x] RK4 vetorizado e DOP853 perto do parâmetro crítico
+[x] Classificação numérica captura/escape e estado não resolvido
+[x] Sombra do buraco negro
+[x] Lente gravitacional do fundo
+[x] Campo de estrelas procedural
 [ ] Disco de acreção
 [ ] Redshift gravitacional
 [ ] Efeito Doppler relativístico
+[ ] Rotação do buraco negro
+[ ] Antialiasing
 [ ] Renderização em alta resolução
-[ ] Otimização de performance
+[ ] Otimizações adicionais de performance
 
 ```
 
@@ -459,6 +541,11 @@ O objetivo é implementar o modelo diretamente a partir das equações físicas,
 
 O modelo relativístico e a bateria principal de validações físicas já estão implementados.
 
-O projeto está atualmente migrando da simulação de **geodésicas individuais** para o **ray tracing pixel a pixel**.
+O **ray tracing pixel a pixel já é o modo padrão** do entrypoint, com sombra
+e lente gravitacional sobre um céu procedural. O diagrama geométrico segue
+disponível em `--mode geometry`. A suíte automatizada atual registra 16
+testes aprovados, além das sete validações físicas do entrypoint.
 
-O objetivo final é construir um renderer no qual a imagem observada seja uma consequência direta da propagação dos fótons pelo espaço-tempo curvo de Schwarzschild.
+A imagem atual resulta da propagação dos fótons pelo espaço-tempo curvo
+de Schwarzschild, com as aproximações numéricas descritas acima. Disco de
+acreção, antialiasing e efeitos relativísticos de emissão continuam pendentes.
