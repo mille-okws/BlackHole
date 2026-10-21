@@ -8,6 +8,53 @@ O objetivo do projeto é construir um **ray tracer relativístico** capaz de rep
 
 ---
 
+## Instalação e execução
+
+Execute os comandos na raiz do repositório (`/workspace/BlackHole` no cloud).
+Em uma máquina nova, instalar as dependências é pré-requisito:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+O ambiente cloud já tem as dependências instaladas. O único entrypoint é:
+
+```bash
+python main.py
+```
+
+Quando a `.venv` local existe, `python main.py` usa automaticamente o
+interpretador desse ambiente, sem exigir ativação manual.
+
+O comando `python main.py` executa as sete validações físicas, imprime o
+resumo e, se todas passarem, renderiza a cena geométrica 2D. Com display,
+exibe a cena; sem display, salva uma imagem automaticamente em
+`outputs/blackhole.png`.
+
+Flags implementadas para esse mesmo entrypoint:
+
+| Flag | Comportamento |
+| --- | --- |
+| `--headless` | Executar sem janela e salvar a imagem após as validações. |
+| `--output CAMINHO` | Definir o caminho do arquivo de imagem. |
+| `--validate-only` | Executar somente as validações físicas, sem renderizar. |
+
+Essas opções mantêm `python main.py` como único entrypoint.
+
+Para executar os cinco testes automatizados com `unittest`, na raiz do
+repositório:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+As dependências externas revisadas nos imports são NumPy, SciPy, SymPy e
+Matplotlib, todas declaradas em `requirements.txt`. A pasta `.venv/`, os
+caches Python, o cache simbólico de Christoffel e `outputs/` são ignorados
+pelo Git.
+
+---
+
 ## Sobre o projeto
 
 Este projeto implementa um modelo numérico de um **buraco negro de Schwarzschild**, considerando:
@@ -50,11 +97,18 @@ A ideia central é lançar raios a partir de uma **câmera virtual**, integrar s
 
 ### Visualização
 
+O renderer atual é geométrico: o entrypoint desenha horizonte ($2M$), esfera
+de fótons ($3M$), ISCO ($6M$), eixos e grade. Há suporte para desenhar
+trajetórias, mas sua conexão com a saída da simulação no `main.py` ainda
+está pendente. A câmera 2D controla a visualização; a câmera que gera raios
+por pixel e o ray tracing relativístico ainda serão implementados.
+
 * [x] Renderer 2D
 * [x] Horizonte de eventos
 * [x] Esfera de fótons
 * [x] ISCO
-* [x] Trajetórias das geodésicas
+* [x] Suporte a desenho de trajetórias das geodésicas no renderer
+* [ ] Conexão das trajetórias ao renderer pelo entrypoint
 * [ ] Modelo de câmera
 * [ ] Geração de raios
 * [ ] Ray tracing relativístico
@@ -286,6 +340,10 @@ Posteriormente poderão ser incluídos efeitos relativísticos como:
 
 O projeto separa o modelo físico da visualização.
 
+A árvore abaixo inclui a arquitetura planejada: `raytracing/` ainda não
+existe no repositório. O fluxo até pixels e imagem por ray tracing é futuro;
+a execução atual termina na visualização geométrica 2D.
+
 ```text
 black_hole/
 │
@@ -357,6 +415,7 @@ O renderer não deve calcular a física do buraco negro. Ele recebe os resultado
 * **Python**
 * **NumPy**
 * **SciPy**
+* **SymPy**
 * **Matplotlib**
 
 O objetivo é implementar o modelo diretamente a partir das equações físicas, evitando depender de um motor pronto de simulação ou renderização de buracos negros.
@@ -372,7 +431,10 @@ O objetivo é implementar o modelo diretamente a partir das equações físicas,
 [x] Integração numérica
 [x] Validação física
 [x] Renderer 2D
-[x] Visualização das geodésicas
+[x] Suporte ao desenho das geodésicas no renderer
+[ ] Conexão das geodésicas ao renderer pelo main.py
+[x] Salvamento automático de imagem sem display
+[x] Flags --headless, --output CAMINHO e --validate-only
 
 [ ] Modelo de câmera
 [ ] Geração dos raios

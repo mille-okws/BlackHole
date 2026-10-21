@@ -13,60 +13,42 @@ and simulation/ packages.
 The renderer is responsible only for visualization.
 """
 
-# ============================================================
-# Validation
-# ============================================================
-
-from validation.newtonian_limit import (
-    test_flat_space,
-    test_newtonian_limit,
-)
-
-from validation.schwarzschild_radius import (
-    test_event_horizon,
-)
-
-from validation.photon_sphere import (
-    test_photon_sphere,
-)
-
-from validation.circular_orbits import (
-    test_stable_circular_orbit,
-    test_isco,
-)
-
-from validation.precession import (
-    test_perihelion_precession,
-)
+import argparse
+import os
+from pathlib import Path
+import sys
 
 
-# ============================================================
-# Renderer
-# ============================================================
-
-from renderer import Renderer2D
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-# ============================================================
-# Validation
-# ============================================================
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Valida a física e renderiza o buraco negro de Schwarzschild."
+    )
+    parser.add_argument(
+        "--headless", action="store_true",
+        help="Salva a imagem sem abrir uma janela (automático sem display).",
+    )
+    parser.add_argument(
+        "--output", type=Path,
+        help="Destino da imagem; padrão: outputs/blackhole.png no projeto.",
+    )
+    parser.add_argument(
+        "--validate-only", action="store_true", help="Executa apenas a validação física.",
+    )
+    return parser.parse_args(argv)
+
 
 def run_validation():
-    """
-    Run the complete physical validation suite.
+    """Run all seven physical checks, importing their dependencies on demand."""
+    from validation.newtonian_limit import test_flat_space, test_newtonian_limit
+    from validation.schwarzschild_radius import test_event_horizon
+    from validation.photon_sphere import test_photon_sphere
+    from validation.circular_orbits import test_stable_circular_orbit, test_isco
+    from validation.precession import test_perihelion_precession
 
-    Returns
-    -------
-    results : dict
-        Dictionary containing the result of every test.
-    """
-
-    print("========================================")
-    print(" Schwarzschild Black Hole Simulation")
-    print("========================================")
-
-    print("\n=== Validação física ===")
-
+    print("=== Validação física ===")
     results = {
         "flat_space": test_flat_space(),
         "newtonian_limit": test_newtonian_limit(),
@@ -76,110 +58,75 @@ def run_validation():
         "isco": test_isco(),
         "precession": test_perihelion_precession(),
     }
-
     print("\n=== Resumo ===")
-
     for name, ok in results.items():
-
-        status = "OK" if ok else "FALHOU"
-
-        print(
-            f"{name}: {status}"
-        )
-
+        print(f"{name}: {'OK' if ok else 'FALHOU'}")
     return results
 
 
-# ============================================================
-# Renderer
-# ============================================================
+def run_renderer(headless=False, output=None):
+    """Display the current geometric scene or save it on machines without a GUI."""
+    cache = PROJECT_ROOT / "outputs" / ".cache" / "matplotlib"
+    if "MPLCONFIGDIR" not in os.environ:
+        cache.mkdir(parents=True, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = str(cache)
 
-def run_renderer():
-    """
-    Create and display the 2D Schwarzschild black hole.
+    import matplotlib
 
-    At this stage the renderer displays:
+    no_display = sys.platform.startswith("linux") and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    )
+    if headless or no_display:
+        matplotlib.use("Agg")
+    backend = matplotlib.get_backend().lower()
+    noninteractive = backend in {"agg", "pdf", "svg", "ps", "cairo", "template", "pgf"}
 
-        - Event horizon: r = 2M
-        - Photon sphere: r = 3M
-        - ISCO: r = 6M
-
-    Trajectories will be added when the simulation output
-    is connected to the renderer.
-    """
+    from renderer import Renderer2D
+    import matplotlib.pyplot as plt
 
     print("\n=== Renderer 2D ===")
-
-    renderer = Renderer2D(
-        M=1.0
-    )
-
-    renderer.draw_scene(
-        draw_horizon=True,
-        draw_photon_sphere=True,
-        draw_isco=True,
-        draw_grid=True,
-        draw_axes=True,
-        draw_center=True,
-        title="Schwarzschild Black Hole"
-    )
-
-    renderer.show()
+    renderer = Renderer2D(M=1.0)
+    try:
+        renderer.draw_scene(title="Schwarzschild Black Hole")
+        if output is not None or headless or no_display or noninteractive:
+            destination = output if output is not None else PROJECT_ROOT / "outputs" / "blackhole.png"
+            destination = Path(destination).resolve()
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            renderer.fig.savefig(destination)
+            print(f"[OK] Imagem salva em: {destination}")
+        if not (headless or no_display or noninteractive):
+            renderer.show()
+    finally:
+        plt.close(renderer.fig)
 
 
-# ============================================================
-# Main
-# ============================================================
-
-def main():
-    """
-    Main execution flow.
-    """
-
-    # --------------------------------------------------------
-    # 1. Run physical validation
-    # --------------------------------------------------------
-
-    results = run_validation()
-
-    # --------------------------------------------------------
-    # 2. Check validation
-    # --------------------------------------------------------
-
-    all_tests_passed = all(
-        results.values()
-    )
-
-    if not all_tests_passed:
-
+def main(argv=None):
+    args = parse_args(argv)
+    try:
+        results = run_validation()
+        if not results or not all(results.values()):
+            print("[ERRO] Validação física falhou; renderer não será executado.", file=sys.stderr)
+            return 1
+        print("\n[OK] Todos os testes físicos passaram.")
+        if not args.validate_only:
+            run_renderer(headless=args.headless, output=args.output)
+    except ModuleNotFoundError as exc:
         print(
-            "\n[ERRO] Uma ou mais validações falharam."
+            f"[ERRO] Dependência ausente: {exc.name}. Instale com:\n"
+            f'  "{sys.executable}" -m pip install -r "{PROJECT_ROOT / "requirements.txt"}"',
+            file=sys.stderr,
         )
+        return 1
+    except (OSError, ValueError) as exc:
+        print(f"[ERRO] {exc}", file=sys.stderr)
+        return 1
+    return 0
 
-        print(
-            "[INFO] Renderer não será executado."
-        )
-
-        return
-
-    # --------------------------------------------------------
-    # 3. Validation successful
-    # --------------------------------------------------------
-
-    print(
-        "\n[OK] Todos os testes físicos passaram."
-    )
-
-    # --------------------------------------------------------
-    # 4. Start renderer
-    # --------------------------------------------------------
-
-    run_renderer()
-
-
-# ============================================================
-# Script entry point
-# ============================================================
 
 if __name__ == "__main__":
-    main()
+    # Reuse the prepared local environment even when invoked with system Python.
+    venv_root = PROJECT_ROOT / ".venv"
+    venv_python = venv_root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if venv_python.is_file() and Path(sys.prefix).resolve() != venv_root.resolve():
+        os.execv(str(venv_python), [str(venv_python), str(Path(__file__).resolve()), *sys.argv[1:]])
+    raise SystemExit(main())
